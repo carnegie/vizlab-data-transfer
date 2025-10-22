@@ -1,4 +1,4 @@
-import vizlab
+from vizlab_data_transfer import vizlab
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -10,10 +10,10 @@ scalar = np.random.rand(1000)
 fig, ax = plt.subplots()
 x_data = np.linspace(0, 10, 100)
 y_data = np.cos(x_data)
-ax.plot(x_data, y_data, label='Cosine', color='blue', linestyle='--')
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_title('Cosine Plot')
+ax.plot(x_data, y_data, label="Cosine", color="blue", linestyle="--")
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_title("Cosine Plot")
 ax.legend()
 
 # Send data over to VizLab
