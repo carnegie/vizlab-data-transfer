@@ -12,6 +12,8 @@ To use this package, we need a proper connection to Carnegie's local network. Yo
 You'll need to set the VizLab local IP and appropriate port number - look to internal Carnegie resources for these:
 
 ```
+from vizlab_data_transfer import vizlab
+
 vizlab.set_ip(IP)
 vizlab.set_port(PORT)
 ```
@@ -23,6 +25,8 @@ These values are stored internally by the package and persist between sessions, 
 This package is designed to be as straightforward as possible. To send Python data to the system, use the ```vizlab.send()``` method:
 
 ```
+from vizlab_data_transfer import vizlab
+
 vizlab.send(data) # give a single dataset
 vizlab.send([table, fig1, fig2]) # or a list of them...
 ```
@@ -39,7 +43,10 @@ Feel free to leave an issue on this repository if there's a Python object you'd 
 Likewise, to receive data back from the system use ```vizlab.receive()```:
 
 ```
-data = vizlab.receive()
+from vizlab_data_transfer import vizlab
+
+# NOTE: VizLab must be in 'receive' state before this is run so server is ready to meet this request
+data = vizlab.receive() 
 ```
 
 Currently only numeric data of type ```np.float32``` can be returned.
