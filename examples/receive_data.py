@@ -1,4 +1,4 @@
-import vizlab
+from vizlab_data_transfer import vizlab
 import numpy as np
 
 # Let VizLab software send back data on socket...
