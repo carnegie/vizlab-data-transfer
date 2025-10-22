@@ -208,8 +208,8 @@ def _network_info_is_valid():
 def _retrieve_network_info():
     # pull data from config file
     if not os.path.isfile("config.json"):
-        _write_to_config("IP", null)
-        _write_to_config("PORT", null)
+        _write_to_config("IP", None)
+        _write_to_config("PORT", None)
 
     with open("config.json", "r") as f:
         data = json.load(f)
