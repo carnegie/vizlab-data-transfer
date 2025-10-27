@@ -206,12 +206,13 @@ def _network_info_is_valid():
 
 
 def _retrieve_network_info():
+    config_path = os.path.dirname(os.path.abspath(__file__)) + "\\config.json"
     # pull data from config file
-    if not os.path.isfile("config.json"):
+    if not os.path.isfile(config_path):
         _write_to_config("IP", None)
         _write_to_config("PORT", None)
 
-    with open("config.json", "r") as f:
+    with open(config_path, "r") as f:
         data = json.load(f)
 
         global IP
@@ -252,7 +253,8 @@ def _write_to_config(key, value):
     ip = IP if key != "IP" else value
     port = PORT if key != "PORT" else value
     data = {"IP": ip, "PORT": port}
-    with open("config.json", "w") as json_file:
+    config_path = os.path.dirname(os.path.abspath(__file__)) + "\\config.json"
+    with open(config_path, "w") as json_file:
         json.dump(data, json_file, indent=4)
 
 
