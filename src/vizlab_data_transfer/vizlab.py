@@ -261,14 +261,15 @@ def _write_to_config(key, value):
 
 def _serialize_data(info):
 
-    if isinstance(info, list):
+    if (isinstance(info, list) or isinstance(info, tuple)):
         byteArray = bytearray()
         for i in range(len(info)):
             finalBlock = True if i == len(info) - 1 else False
             byteArray.extend(_serialize_single_data(info[i], finalBlock))
-        return byteArray
+        return (len(byteArray)).to_bytes(4, byteorder="little") + byteArray
     else:
-        return _serialize_single_data(info, True)
+        data = _serialize_single_data(info, True)
+        return (len(data)).to_bytes(4, byteorder="little") + data
 
 
 def _serialize_single_data(info, is_final_block):
