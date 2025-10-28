@@ -269,11 +269,11 @@ def _serialize_data(info, object_name, data_names):
             finalBlock = True if i == len(info) - 1 else False
             data_name = "" if data_names == None else data_names[i]
             byteArray.extend(_serialize_single_data(info[i], data_name, finalBlock))
-        return _serialize_payload_header(len(byteArray), object_name) + byteArray
+        return _serialize_payload_header(len(byteArray), ("" if object_name == None else object_name)) + byteArray
     else:
         data_name = "" if data_names == None else (data_names[0] if type(data_names) == list else data_names)
         data = _serialize_single_data(info, data_name, True)
-        return _serialize_payload_header(len(data), object_name) + data
+        return _serialize_payload_header(len(data), ("" if object_name == None else object_name)) + data
 
 
 def _serialize_single_data(info, data_name, is_final_block):
