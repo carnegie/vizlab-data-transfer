@@ -72,20 +72,34 @@ def receive():
     # Connect to socket
     s.connect((IP, PORT))
 
-    # Receive and process header
+    # Receive and process message
+    sizeBytes = s.recv(4)
+    size = int.from_bytes(sizeBytes)
+    messageBytes = s.recv(size)
+
+    index = 0
+
     # header info: DataSize (int), NumDims (int), NumTypes(int)
-    dataSize = int.from_bytes(s.recv(4), byteorder="little")
-    numDims = int.from_bytes(s.recv(4), byteorder="little")
-    numTypes = int.from_bytes(s.recv(4), byteorder="little")
+    dataSize = int.from_bytes(s.recv(messageBytes[index:index+4]), byteorder="little")
+    index += 4
+
+    numDims = int.from_bytes(s.recv(messageBytes[index:index+4]), byteorder="little")
+    index += 4
+
+    numTypes = int.from_bytes(s.recv(messageBytes[index:index+4]), byteorder="little")
+    index += 4
 
     # Pull out info based on header
-    dimsBytes = s.recv(4 * numDims)
+    dimsBytes = messageBytes[index:index+(4 * numDims)]
+    index += (4 * numDims)
     dims = list(struct.unpack("<" + "I" * numDims, dimsBytes))
 
-    typesBytes = s.recv(4 * numTypes)
+    typesBytes = messageBytes[index:index+(4 * numTypes)]
+    index += (4 * numTypes)
     types = list(struct.unpack("<" + "I" * numTypes, typesBytes))
 
-    byteData = s.recv(dataSize)
+    byteData = messageBytes[index:index+dataSize]
+    index += dataSize
 
     # Deserialize data and return
     data = _deserialize_data(byteData, dims, types)
