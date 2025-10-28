@@ -14,8 +14,13 @@ You'll need to set the VizLab local IP and appropriate port number - look to int
 ```
 from vizlab_data_transfer import vizlab
 
+# set network state
 vizlab.set_ip(IP)
 vizlab.set_port(PORT)
+
+# get network state
+print(vizlab.get_ip())
+print(vizlab.get_port())
 ```
 
 These values are stored internally by the package and persist between sessions, so set them once and you're good to go!
@@ -29,6 +34,16 @@ from vizlab_data_transfer import vizlab
 
 vizlab.send(data) # give a single dataset
 vizlab.send([table, fig1, fig2]) # or a list of them...
+```
+
+You can also use optional arguments to send additional details about your data:
+
+```
+from vizlab_data_transfer import vizlab
+
+vizlab.send([positions, lum], object_name = "stellarstream-results", data_names = ["xyz_pos", "luminosity"]) # provide additional data details
+
+vizlab.send(radii, object_name = "stellarstream-results", data_names = "disk_radii") # give the same object name to append data to an existing object in the system
 ```
 
 Currently we support a variety of Python objects:
