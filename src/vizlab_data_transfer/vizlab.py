@@ -28,7 +28,7 @@ Args:
 """
 
 
-def send(info, object_name = None):
+def send(info, object_name = None, data_names = None):
     if not _network_info_is_valid():
         return
 
@@ -39,7 +39,7 @@ def send(info, object_name = None):
     s.connect((IP, PORT))
 
     # Get byte data
-    byteData = _serialize_data(info, object_name)
+    byteData = _serialize_data(info, object_name, data_names)
 
     # Send to system via socket
     s.sendall(byteData)
@@ -260,28 +260,30 @@ def _write_to_config(key, value):
 ## Data serialization
 
 
-def _serialize_data(info, object_name):
-    _verify_parameters(object_name)
+def _serialize_data(info, object_name, data_names):
+    _verify_parameters(info, object_name, data_names)
 
     if isinstance(info, list) or isinstance(info, tuple):
         byteArray = bytearray()
         for i in range(len(info)):
             finalBlock = True if i == len(info) - 1 else False
-            byteArray.extend(_serialize_single_data(info[i], finalBlock))
-        return _serialize_payload_header(len(byteArray), "" if object_name == None else object_name) + byteArray
+            data_name = None if data_names == None else data_names[i]
+            byteArray.extend(_serialize_single_data(info[i], data_name, finalBlock))
+        return _serialize_payload_header(len(byteArray), object_name) + byteArray
     else:
-        data = _serialize_single_data(info, True)
-        return _serialize_payload_header(len(data), "" if object_name == None else object_name) + data
+        data_name = None if data_names == None else (data_names[0] if type(data_names) == list else data_names)
+        data = _serialize_single_data(info, data_name, True)
+        return _serialize_payload_header(len(data), object_name) + data
 
 
-def _serialize_single_data(info, is_final_block):
+def _serialize_single_data(info, data_name, is_final_block):
 
     if isinstance(info, np.ndarray) and info.dtype.names is None:
-        return _serialize_ndarray_data(info, is_final_block)
+        return _serialize_ndarray_data(info, data_name, is_final_block)
     elif isinstance(info, plt.Figure):
-        return _serialize_mpl_data(info, is_final_block)
+        return _serialize_mpl_data(info, data_name, is_final_block)
     elif isinstance(info, Image.Image):
-        return _serialize_pil_data(info, is_final_block)
+        return _serialize_pil_data(info, data_name, is_final_block)
     elif isinstance(info, np.ndarray) and info.dtype.names is not None:
         return _serialize_recarray_data(info, is_final_block)
     elif isinstance(info, pd.DataFrame):
@@ -289,7 +291,7 @@ def _serialize_single_data(info, is_final_block):
     elif isinstance(info, astropy.table.Table):
         return _serialize_astropy_table_data(info, is_final_block)
     elif isinstance(info, astropy.io.fits.ImageHDU):
-        return _serialize_astropy_image_data(info, is_final_block)
+        return _serialize_astropy_image_data(info, data_name, is_final_block)
     else:
         raise ValueError(
             "Provided Python objects must be one of the following types: numpy ndarray or recarray, pandas dataframe, astropy FITS table, matplotlib figure, PIL image."
@@ -339,7 +341,7 @@ def _serialize_data_header(size_in_bytes, dims, dtypes, name, unit, is_final_blo
     )
 
 
-def _serialize_ndarray_data(arr, is_final_block=False):
+def _serialize_ndarray_data(arr, data_name, is_final_block=False):
 
     # Serialize data
     data = arr.tobytes()
@@ -349,7 +351,7 @@ def _serialize_ndarray_data(arr, is_final_block=False):
         arr.nbytes,
         arr.shape,
         [arr.dtype],
-        "dataset",
+        data_name,
         "dimensionless",
         is_final_block,
     )
@@ -389,7 +391,7 @@ def _serialize_astropy_table_data(table, is_final_block=False):
     return _serialize_recarray_data(table.as_array(), is_final_block)
 
 
-def _serialize_mpl_data(fig, is_final_block=False):
+def _serialize_mpl_data(fig, data_name, is_final_block=False):
 
     # Convert plot to a byte-stored image
     buf = BytesIO()
@@ -402,7 +404,7 @@ def _serialize_mpl_data(fig, is_final_block=False):
         buf.getbuffer().nbytes,
         [int(i) for i in list(fig.get_size_inches())] * 300,
         [13],
-        "dataset",
+        data_name,
         "dimensionless",
         is_final_block,
     )
@@ -410,7 +412,7 @@ def _serialize_mpl_data(fig, is_final_block=False):
     return header + data
 
 
-def _serialize_pil_data(img, is_final_block=False):
+def _serialize_pil_data(img, data_name, is_final_block=False):
 
     # Convert PIL Image class to a byte-stored image
     buf = BytesIO()
@@ -422,7 +424,7 @@ def _serialize_pil_data(img, is_final_block=False):
         buf.getbuffer().nbytes,
         list(img.size),
         [13],
-        "dataset",
+        data_name,
         "dimensionless",
         is_final_block,
     )
@@ -488,14 +490,27 @@ def _get_dtype_sizes(dtypes):
         if isinstance(dtype, np.dtype):
             sizes.append(dtype.itemsize)
         else:
-            size.append(0)
+            sizes.append(0)
     return sizes
 
-def _verify_parameters(object_name):
+def _verify_parameters(info, object_name, data_names):
     if (object_name != None):
         if (type(object_name) != str):
             raise ValueError("Given object name is not in an acceptable format (must be a string).")
 
+    if (data_names != None):
+        if (type(data_names) != list and type(data_names) != str):
+            raise ValueError("Given data names are not in an acceptable format (must be a single string or list of strings).")
+        if (type(data_names) == list and len(data_names) > 0 and not all(isinstance(item, str) for item in data_names)):
+            raise ValueError("Given data names are not in an acceptable format (must be a single string or list of strings).")
+        if isinstance(info, list) or isinstance(info, tuple):
+            if (type(data_names) != list):
+                raise ValueError("Given data names are not in an acceptable format (must be a list of strings).")
+            if (type(data_names) == list and len(data_names) != len(info)):
+                raise ValueError(f"Number of data names ({len(data_names)}) does not match the number of datasets ({len(info)}).")
+        else:
+            if (type(data_names) == list and len(data_names) != 1):
+                raise ValueError("Multiple data names given but only one dataset provided.")
 ## Data deserialization
 
 
