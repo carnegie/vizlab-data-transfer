@@ -16,8 +16,8 @@ PORT = None  # VizLab's port number
 """
 TODO: Python objects to support:
 * astropy coordinates
-* HDF5 objects via h5py
 * pynbody simulation objects
+* sqlalchemy SELECT statements
 """
 
 """
@@ -28,7 +28,7 @@ Args:
 """
 
 
-def send(info):
+def send(info, object_name = None):
     if not _network_info_is_valid():
         return
 
@@ -39,7 +39,7 @@ def send(info):
     s.connect((IP, PORT))
 
     # Get byte data
-    byteData = _serialize_data(info)
+    byteData = _serialize_data(info, object_name)
 
     # Send to system via socket
     s.sendall(byteData)
@@ -260,17 +260,18 @@ def _write_to_config(key, value):
 ## Data serialization
 
 
-def _serialize_data(info):
+def _serialize_data(info, object_name):
+    _verify_parameters(object_name)
 
     if isinstance(info, list) or isinstance(info, tuple):
         byteArray = bytearray()
         for i in range(len(info)):
             finalBlock = True if i == len(info) - 1 else False
             byteArray.extend(_serialize_single_data(info[i], finalBlock))
-        return (len(byteArray)).to_bytes(4, byteorder="little") + byteArray
+        return _serialize_payload_header(len(byteArray), "" if object_name == None else object_name) + byteArray
     else:
         data = _serialize_single_data(info, True)
-        return (len(data)).to_bytes(4, byteorder="little") + data
+        return _serialize_payload_header(len(data), "" if object_name == None else object_name) + data
 
 
 def _serialize_single_data(info, is_final_block):
@@ -294,8 +295,15 @@ def _serialize_single_data(info, is_final_block):
             "Provided Python objects must be one of the following types: numpy ndarray or recarray, pandas dataframe, astropy FITS table, matplotlib figure, PIL image."
         )
 
+def _serialize_payload_header(payload_size, object_name):
+    payload_size_header = payload_size.to_bytes(4, byteorder="little")
+    object_name_length_header = (len(object_name)).to_bytes(4, byteorder="little")
+    object_name_header = object_name.encode("utf-8")
 
-def _serialize_header(size_in_bytes, dims, dtypes, name, unit, is_final_block):
+    return payload_size_header + object_name_length_header + object_name_header
+
+
+def _serialize_data_header(size_in_bytes, dims, dtypes, name, unit, is_final_block):
 
     block_value = 1 if is_final_block else 0
     content_header = (
@@ -337,7 +345,7 @@ def _serialize_ndarray_data(arr, is_final_block=False):
     data = arr.tobytes()
 
     # Serialize header info
-    header = _serialize_header(
+    header = _serialize_data_header(
         arr.nbytes,
         arr.shape,
         [arr.dtype],
@@ -359,7 +367,7 @@ def _serialize_recarray_data(arr, is_final_block=False):
     data = arr.tobytes()
 
     # Serialize header info
-    header = _serialize_header(
+    header = _serialize_data_header(
         arr.nbytes,
         arr.shape + (len(arr.dtype.names),),
         arr.dtype.names,
@@ -390,7 +398,7 @@ def _serialize_mpl_data(fig, is_final_block=False):
     data = bytearray(buf.getvalue())
 
     # Serialize header info
-    header = _serialize_header(
+    header = _serialize_data_header(
         buf.getbuffer().nbytes,
         [int(i) for i in list(fig.get_size_inches())] * 300,
         [13],
@@ -410,7 +418,7 @@ def _serialize_pil_data(img, is_final_block=False):
     data = buf.getvalue()
 
     # Serialize header info
-    header = _serialize_header(
+    header = _serialize_data_header(
         buf.getbuffer().nbytes,
         list(img.size),
         [13],
@@ -483,6 +491,10 @@ def _get_dtype_sizes(dtypes):
             size.append(0)
     return sizes
 
+def _verify_parameters(object_name):
+    if (object_name != None):
+        if (type(object_name) != str):
+            raise ValueError("Given object name is not in an acceptable format (must be a string).")
 
 ## Data deserialization
 
