@@ -110,8 +110,7 @@ def set_ip(ip):
             ip
         )  # use ipaddress module to check validity of given address
 
-        
-        IP = ip # update current module state
+        IP = ip  # update current module state
 
         # update config state
         _write_to_config("IP", IP)
@@ -263,7 +262,7 @@ def _write_to_config(key, value):
 
 def _serialize_data(info):
 
-    if (isinstance(info, list) or isinstance(info, tuple)):
+    if isinstance(info, list) or isinstance(info, tuple):
         byteArray = bytearray()
         for i in range(len(info)):
             finalBlock = True if i == len(info) - 1 else False
@@ -308,11 +307,28 @@ def _serialize_header(size_in_bytes, dims, dtypes, name, unit, is_final_block):
         + (block_value).to_bytes(4, byteorder="little")
     )
     dims_header = b"".join([i.to_bytes(4, byteorder="little") for i in dims])
-    dtypes_header = b"".join([i.to_bytes(1, byteorder="little") for i in dtypes])
+    dtypes_header = b"".join(
+        [
+            i.to_bytes(1, byteorder="little")
+            for i in (
+                dtypes if type(dtypes[0]) == int else _get_internal_dtypes(dtypes)
+            )
+        ]
+    )
+    dtype_size_header = b"".join(
+        [i.to_bytes(4, byteorder="little") for i in _get_dtype_sizes(dtypes)]
+    )
     name_header = name.encode("utf-8")
     unit_header = unit.encode("utf-8")
 
-    return content_header + dims_header + dtypes_header + name_header + unit_header
+    return (
+        content_header
+        + dims_header
+        + dtypes_header
+        + dtype_size_header
+        + name_header
+        + unit_header
+    )
 
 
 def _serialize_ndarray_data(arr, is_final_block=False):
@@ -324,7 +340,7 @@ def _serialize_ndarray_data(arr, is_final_block=False):
     header = _serialize_header(
         arr.nbytes,
         arr.shape,
-        [_get_internal_dtype(arr.dtype)],
+        [arr.dtype],
         "dataset",
         "dimensionless",
         is_final_block,
@@ -346,7 +362,7 @@ def _serialize_recarray_data(arr, is_final_block=False):
     header = _serialize_header(
         arr.nbytes,
         arr.shape + (len(arr.dtype.names),),
-        _get_internal_dtypes(arr.dtype),
+        arr.dtype.names,
         _combine_string_list(arr.dtype.names),
         "dimensionless",
         is_final_block,
@@ -377,7 +393,7 @@ def _serialize_mpl_data(fig, is_final_block=False):
     header = _serialize_header(
         buf.getbuffer().nbytes,
         [int(i) for i in list(fig.get_size_inches())] * 300,
-        [10],
+        [13],
         "dataset",
         "dimensionless",
         is_final_block,
@@ -397,7 +413,7 @@ def _serialize_pil_data(img, is_final_block=False):
     header = _serialize_header(
         buf.getbuffer().nbytes,
         list(img.size),
-        [10],
+        [13],
         "dataset",
         "dimensionless",
         is_final_block,
@@ -437,17 +453,35 @@ def _get_internal_dtype(numpy_dtype):
         return 8
     elif numpy_dtype is np.dtype(np.float64):
         return 9
+    elif (
+        numpy_dtype == bool
+    ):  # numpy uses regular python bool type so type check is different
+        return 10
+    elif numpy_dtype.kind == "S":  # byte strings
+        return 11
+    elif numpy_dtype.kind == "U":  # Unicode strings
+        return 12
     else:
         raise ValueError(
-            "Provided ndarray must be one of the following datatypes: np.int/uint(8, 16, 32, 64), np.float(16, 32, 64)"
+            "Provided ndarray must be one of the following datatypes: int/uint(8, 16, 32, 64), float(16, 32, 64), boolean, fixed-length or variable-length strings."
         )
 
 
-def _get_internal_dtypes(recarray_dtype):
-    dtypes = []
-    for i in recarray_dtype.names:
-        dtypes.append(_get_internal_dtype(recarray_dtype[i]))
-    return dtypes
+def _get_internal_dtypes(dtypes):
+    internal_types = []
+    for dtype in dtypes:
+        internal_types.append(_get_internal_dtype(dtype))
+    return internal_types
+
+
+def _get_dtype_sizes(dtypes):
+    sizes = []
+    for dtype in dtypes:
+        if isinstance(dtype, np.dtype):
+            sizes.append(dtype.itemsize)
+        else:
+            size.append(0)
+    return sizes
 
 
 ## Data deserialization
