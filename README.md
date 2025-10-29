@@ -53,6 +53,13 @@ Currently we support a variety of Python objects:
 * pandas dataframes
 * Pillow images
 
+Special notice must be taken for heteregeneous data sources (FITS tables, pandas dataframes, numpy recarrays) and specifying data names and units. You give a name for the table (the column names are already included in the data itself) and units for each column individually:
+
+```
+# recarray names/units example
+vizlab.send(three_col_recarray, data_names=["table"], data_units = ["m", "s", "J"])
+```
+
 Feel free to leave an issue on this repository if there's a Python object you'd like support for!
 
 Likewise, to receive data back from the system use ```vizlab.receive()```:
