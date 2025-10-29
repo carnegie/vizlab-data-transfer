@@ -28,13 +28,11 @@ class TestDataReceiveMethods:
         dimsBytes = b"".join([i.to_bytes(4, byteorder="little") for i in [10, 2]])
         typesBytes = b"".join([i.to_bytes(4, byteorder="little") for i in [6]])
         dataBytes = np.random.rand(10, 2).astype(np.float32).tobytes()
+        messageSize = (104).to_bytes(4)
+        
         mock_socket_instance.recv.side_effect = [
-            dataSize,
-            numDims,
-            numTypes,
-            dimsBytes,
-            typesBytes,
-            dataBytes,
+            messageSize,
+            dataSize + numDims + numTypes + dimsBytes + typesBytes + dataBytes,
         ]
 
         # Assertions

@@ -72,21 +72,29 @@ def receive():
     # Connect to socket
     s.connect((IP, PORT))
 
-    # Receive and process message
+    # Receive data payload size
     sizeBytes = s.recv(4)
     size = int.from_bytes(sizeBytes)
-    messageBytes = s.recv(size)
+
+    # Wait to receive all data
+    messageBytes = b''
+    while len(messageBytes) < size:
+        packet = s.recv(size - len(messageBytes))
+        if not packet:
+            raise ValueError("The connection to the system closed prematurely.")
+        messageBytes += packet
 
     index = 0
 
+    # Parse full data payload
     # header info: DataSize (int), NumDims (int), NumTypes(int)
-    dataSize = int.from_bytes(s.recv(messageBytes[index:index+4]), byteorder="little")
+    dataSize = int.from_bytes(messageBytes[index:index+4], byteorder="little")
     index += 4
 
-    numDims = int.from_bytes(s.recv(messageBytes[index:index+4]), byteorder="little")
+    numDims = int.from_bytes(messageBytes[index:index+4], byteorder="little")
     index += 4
 
-    numTypes = int.from_bytes(s.recv(messageBytes[index:index+4]), byteorder="little")
+    numTypes = int.from_bytes(messageBytes[index:index+4], byteorder="little")
     index += 4
 
     # Pull out info based on header
