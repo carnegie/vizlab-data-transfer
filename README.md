@@ -48,7 +48,7 @@ vizlab.send(radii, object_name = "stellarstream-results", data_names = "disk_rad
 
 Currently we support a variety of Python objects:
 * numpy ndarrays and recarrays
-* astropy FITS Table objects
+* astropy FITS Table and ImageHDU objects
 * matplotlib figures
 * pandas dataframes
 * Pillow images
