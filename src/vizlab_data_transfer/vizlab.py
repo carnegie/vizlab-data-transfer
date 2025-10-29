@@ -14,21 +14,14 @@ IP = None  # VizLab's local IP address
 PORT = None  # VizLab's port number
 
 """
-TODO: Python objects to support:
-* astropy coordinates
-* pynbody simulation objects
-* sqlalchemy SELECT statements
-"""
-
-"""
 Send provided data to the VizLab.
 
 Args:
-    info (obj or list(obj)): Data to send.
+    info (obj or list(obj) or tuple(obj)): Data to send.
 """
 
 
-def send(info, object_name = None, data_names = None):
+def send(info, object_name=None, data_names=None, data_units=None):
     if not _network_info_is_valid():
         return
 
@@ -39,7 +32,7 @@ def send(info, object_name = None, data_names = None):
     s.connect((IP, PORT))
 
     # Get byte data
-    byteData = _serialize_data(info, object_name, data_names)
+    byteData = _serialize_data(info, object_name, data_names, data_units)
 
     # Send to system via socket
     s.sendall(byteData)
@@ -77,7 +70,7 @@ def receive():
     size = int.from_bytes(sizeBytes)
 
     # Wait to receive all data
-    messageBytes = b''
+    messageBytes = b""
     while len(messageBytes) < size:
         packet = s.recv(size - len(messageBytes))
         if not packet:
@@ -88,25 +81,25 @@ def receive():
 
     # Parse full data payload
     # header info: DataSize (int), NumDims (int), NumTypes(int)
-    dataSize = int.from_bytes(messageBytes[index:index+4], byteorder="little")
+    dataSize = int.from_bytes(messageBytes[index : index + 4], byteorder="little")
     index += 4
 
-    numDims = int.from_bytes(messageBytes[index:index+4], byteorder="little")
+    numDims = int.from_bytes(messageBytes[index : index + 4], byteorder="little")
     index += 4
 
-    numTypes = int.from_bytes(messageBytes[index:index+4], byteorder="little")
+    numTypes = int.from_bytes(messageBytes[index : index + 4], byteorder="little")
     index += 4
 
     # Pull out info based on header
-    dimsBytes = messageBytes[index:index+(4 * numDims)]
-    index += (4 * numDims)
+    dimsBytes = messageBytes[index : index + (4 * numDims)]
+    index += 4 * numDims
     dims = list(struct.unpack("<" + "I" * numDims, dimsBytes))
 
-    typesBytes = messageBytes[index:index+(4 * numTypes)]
-    index += (4 * numTypes)
+    typesBytes = messageBytes[index : index + (4 * numTypes)]
+    index += 4 * numTypes
     types = list(struct.unpack("<" + "I" * numTypes, typesBytes))
 
-    byteData = messageBytes[index:index+dataSize]
+    byteData = messageBytes[index : index + dataSize]
     index += dataSize
 
     # Deserialize data and return
@@ -282,42 +275,69 @@ def _write_to_config(key, value):
 ## Data serialization
 
 
-def _serialize_data(info, object_name, data_names):
-    _verify_parameters(info, object_name, data_names)
+def _serialize_data(info, object_name, data_names, data_units):
+    _verify_parameters(info, object_name, data_names, data_units)
 
     if isinstance(info, list) or isinstance(info, tuple):
         byteArray = bytearray()
+        unit_index = 0
         for i in range(len(info)):
             finalBlock = True if i == len(info) - 1 else False
-            data_name = "" if data_names == None else data_names[i]
-            byteArray.extend(_serialize_single_data(info[i], data_name, finalBlock))
-        return _serialize_payload_header(len(byteArray), ("" if object_name == None else object_name)) + byteArray
+            name = "" if data_names == None else data_names[i]
+            unit = (
+                astropy.units.dimensionless_unscaled
+                if data_units == None
+                else data_units[unit_index : unit_index + _get_num_datasets(info[i])]
+            )
+            unit_index += _get_num_datasets(info[i])
+            byteArray.extend(_serialize_single_data(info[i], name, unit, finalBlock))
+        return (
+            _serialize_payload_header(
+                len(byteArray), ("" if object_name == None else object_name)
+            )
+            + byteArray
+        )
     else:
-        data_name = "" if data_names == None else (data_names[0] if type(data_names) == list else data_names)
-        data = _serialize_single_data(info, data_name, True)
-        return _serialize_payload_header(len(data), ("" if object_name == None else object_name)) + data
+        name = (
+            ""
+            if data_names == None
+            else (data_names[0] if type(data_names) == list else data_names)
+        )
+        unit = (
+            astropy.units.dimensionless_unscaled
+            if data_units == None
+            else (data_units if type(data_units) == list else [data_units])
+        )
+        data = _serialize_single_data(info, name, unit, True)
+        return (
+            _serialize_payload_header(
+                len(data), ("" if object_name == None else object_name)
+            )
+            + data
+        )
 
 
-def _serialize_single_data(info, data_name, is_final_block):
+def _serialize_single_data(info, data_name, data_unit, is_final_block):
 
     if isinstance(info, np.ndarray) and info.dtype.names is None:
-        return _serialize_ndarray_data(info, data_name, is_final_block)
+        return _serialize_ndarray_data(info, data_name, data_unit, is_final_block)
     elif isinstance(info, plt.Figure):
-        return _serialize_mpl_data(info, data_name, is_final_block)
+        return _serialize_mpl_data(info, data_name, data_unit, is_final_block)
     elif isinstance(info, Image.Image):
-        return _serialize_pil_data(info, data_name, is_final_block)
+        return _serialize_pil_data(info, data_name, data_unit, is_final_block)
     elif isinstance(info, np.ndarray) and info.dtype.names is not None:
-        return _serialize_recarray_data(info, is_final_block)
+        return _serialize_recarray_data(info, data_unit, is_final_block)
     elif isinstance(info, pd.DataFrame):
-        return _serialize_pandas_data(info, is_final_block)
+        return _serialize_pandas_data(info, data_unit, is_final_block)
     elif isinstance(info, astropy.table.Table):
-        return _serialize_astropy_table_data(info, is_final_block)
+        return _serialize_astropy_table_data(info, data_unit, is_final_block)
     elif isinstance(info, astropy.io.fits.ImageHDU):
-        return _serialize_astropy_image_data(info, data_name, is_final_block)
+        return _serialize_astropy_image_data(info, data_name, data_unit, is_final_block)
     else:
         raise ValueError(
-            "Provided Python objects must be one of the following types: numpy ndarray or recarray, pandas dataframe, astropy FITS table, matplotlib figure, PIL image."
+            "Provided Python objects must be one of the following types: numpy ndarray or recarray, pandas dataframe, astropy FITS table or image, matplotlib figure, PIL image."
         )
+
 
 def _serialize_payload_header(payload_size, object_name):
     payload_size_header = payload_size.to_bytes(4, byteorder="little")
@@ -328,7 +348,6 @@ def _serialize_payload_header(payload_size, object_name):
 
 
 def _serialize_data_header(size_in_bytes, dims, dtypes, name, unit, is_final_block):
-
     block_value = 1 if is_final_block else 0
     content_header = (
         size_in_bytes.to_bytes(4, byteorder="little")
@@ -363,7 +382,7 @@ def _serialize_data_header(size_in_bytes, dims, dtypes, name, unit, is_final_blo
     )
 
 
-def _serialize_ndarray_data(arr, data_name, is_final_block=False):
+def _serialize_ndarray_data(arr, data_name, data_unit, is_final_block=False):
 
     # Serialize data
     data = arr.tobytes()
@@ -374,18 +393,18 @@ def _serialize_ndarray_data(arr, data_name, is_final_block=False):
         arr.shape,
         [arr.dtype],
         data_name,
-        "dimensionless",
+        _combine_string_list(_get_units_as_strings(data_unit)),
         is_final_block,
     )
 
     return header + data
 
 
-def _serialize_astropy_image_data(img, is_final_block=False):
-    return _serialize_ndarray_data(img.data, is_final_block=False)
+def _serialize_astropy_image_data(img, data_name, data_unit, is_final_block=False):
+    return _serialize_ndarray_data(img.data, data_name, data_unit, is_final_block)
 
 
-def _serialize_recarray_data(arr, is_final_block=False):
+def _serialize_recarray_data(arr, data_unit, is_final_block=False):
 
     # Serialize data
     data = arr.tobytes()
@@ -394,26 +413,26 @@ def _serialize_recarray_data(arr, is_final_block=False):
     header = _serialize_data_header(
         arr.nbytes,
         arr.shape + (len(arr.dtype.names),),
-        arr.dtype.names,
+        [arr[name].dtype for name in arr.dtype.names],
         _combine_string_list(arr.dtype.names),
-        "dimensionless",
+        _combine_string_list(_get_units_as_strings(data_unit)),
         is_final_block,
     )
 
     return header + data
 
 
-def _serialize_pandas_data(df, is_final_block=False):
+def _serialize_pandas_data(df, data_unit, is_final_block=False):
     # Convert dataframe to np.recarray, then serialize that
-    return _serialize_recarray_data(df.to_records(), is_final_block)
+    return _serialize_recarray_data(df.to_records(), data_unit, is_final_block)
 
 
-def _serialize_astropy_table_data(table, is_final_block=False):
+def _serialize_astropy_table_data(table, data_unit, is_final_block=False):
     # Convert FITS table to np.recarray, then serialize that
-    return _serialize_recarray_data(table.as_array(), is_final_block)
+    return _serialize_recarray_data(table.as_array(), data_unit, is_final_block)
 
 
-def _serialize_mpl_data(fig, data_name, is_final_block=False):
+def _serialize_mpl_data(fig, data_name, data_unit, is_final_block=False):
 
     # Convert plot to a byte-stored image
     buf = BytesIO()
@@ -427,14 +446,14 @@ def _serialize_mpl_data(fig, data_name, is_final_block=False):
         [int(i) for i in list(fig.get_size_inches())] * 300,
         [13],
         data_name,
-        "dimensionless",
+        _combine_string_list(_get_units_as_strings(data_unit)),
         is_final_block,
     )
 
     return header + data
 
 
-def _serialize_pil_data(img, data_name, is_final_block=False):
+def _serialize_pil_data(img, data_name, data_unit, is_final_block=False):
 
     # Convert PIL Image class to a byte-stored image
     buf = BytesIO()
@@ -447,7 +466,7 @@ def _serialize_pil_data(img, data_name, is_final_block=False):
         list(img.size),
         [13],
         data_name,
-        "dimensionless",
+        _combine_string_list(_get_units_as_strings(data_unit)),
         is_final_block,
     )
 
@@ -515,24 +534,103 @@ def _get_dtype_sizes(dtypes):
             sizes.append(0)
     return sizes
 
-def _verify_parameters(info, object_name, data_names):
-    if (object_name != None):
-        if (type(object_name) != str):
-            raise ValueError("Given object name is not in an acceptable format (must be a string).")
 
-    if (data_names != None):
-        if (type(data_names) != list and type(data_names) != str):
-            raise ValueError("Given data names are not in an acceptable format (must be a single string or list of strings).")
-        if (type(data_names) == list and len(data_names) > 0 and not all(isinstance(item, str) for item in data_names)):
-            raise ValueError("Given data names are not in an acceptable format (must be a single string or list of strings).")
+def _get_unit_as_string(unit):
+    if type(unit) == str:
+        # verify that provided string is in a valid FITS unit format
+        try:
+            converted = astropy.units.Unit(unit)
+            return unit
+        except:
+            raise ValueError(
+                "Provided unit must be either an astropy.units instance or a valid FITS-formatted unit string."
+            )
+    else:
+        try:
+            return astropy.units.format.FITS.to_string(unit)
+        except:
+            raise ValueError(
+                "Provided unit must be either an astropy.units instance or a valid FITS-formatted unit string."
+            )
+
+
+def _get_units_as_strings(units):
+    if type(units) == list:
+        strings = []
+        for unit in units:
+            strings.append(_get_unit_as_string(unit))
+        return strings
+    else:
+        return [_get_unit_as_string(units)]
+
+
+def _get_expected_num_units(info):
+    count = 0
+    if type(info) == list or type(info) == tuple:
+        for i in range(len(info)):
+            count += _get_num_datasets(info[i])
+            print(count)
+    else:
+        count += _get_num_datasets(info)
+    return count
+
+
+def _get_num_datasets(dset):
+    if isinstance(dset, np.ndarray) and dset.dtype.names is not None:
+        return len(dset.dtype.names)
+    elif isinstance(dset, pd.DataFrame):
+        return len(dset.columns)
+    elif isinstance(dset, astropy.table.Table):
+        return len(dset.colnames)
+    else:
+        return 1
+
+
+def _verify_parameters(info, object_name, data_names, data_units):
+    if object_name != None:
+        if type(object_name) != str:
+            raise ValueError(
+                "Given object name is not in an acceptable format (must be a string)."
+            )
+
+    if data_names != None:
+        if type(data_names) != list and type(data_names) != str:
+            raise ValueError(
+                "Given data names are not in an acceptable format (must be a single string or list of strings)."
+            )
+        if (
+            type(data_names) == list
+            and len(data_names) > 0
+            and not all(isinstance(item, str) for item in data_names)
+        ):
+            raise ValueError(
+                "Given data names are not in an acceptable format (must be a single string or list of strings)."
+            )
         if isinstance(info, list) or isinstance(info, tuple):
-            if (type(data_names) != list):
-                raise ValueError("Given data names are not in an acceptable format (must be a list of strings).")
-            if (type(data_names) == list and len(data_names) != len(info)):
-                raise ValueError(f"Number of data names ({len(data_names)}) does not match the number of datasets ({len(info)}).")
+            if len(data_names) != len(info):
+                raise ValueError(
+                    f"Number of data names ({len(data_names)}) does not match the number of datasets ({len(info)})."
+                )
         else:
-            if (type(data_names) == list and len(data_names) != 1):
-                raise ValueError("Multiple data names given but only one dataset provided.")
+            if (
+                type(data_names) != str
+                and type(data_names) == list
+                and len(data_names) != 1
+            ):
+                raise ValueError(
+                    "Multiple data names given but only one dataset provided."
+                )
+
+    if data_units != None:
+        num_units = _get_expected_num_units(info)
+        _get_units_as_strings(data_units)
+
+        if (len(data_units) if type(data_units) == list else 1) != num_units:
+            raise ValueError(
+                f"Number of data units ({len(data_units) if type(data_units) == list else 1}) does not match the expected number ({num_units})."
+            )
+
+
 ## Data deserialization
 
 
