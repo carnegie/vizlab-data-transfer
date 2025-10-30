@@ -1,4 +1,5 @@
 # vizlab-data-transfer
+[![Run Python tests](https://github.com/carnegie/vizlab-data-transfer/actions/workflows/run-tests.yaml/badge.svg?branch=main)](https://github.com/carnegie/vizlab-data-transfer/actions/workflows/run-tests.yaml) ![Coverage Status](/badges/coverage-badge.svg?dummy=8484744)
 
 This package enables easy transferring of data to and from the VizLab! 
 
