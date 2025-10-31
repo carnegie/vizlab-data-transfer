@@ -569,7 +569,6 @@ def _get_expected_num_units(info):
     if type(info) == list or type(info) == tuple:
         for i in range(len(info)):
             count += _get_num_datasets(info[i])
-            print(count)
     else:
         count += _get_num_datasets(info)
     return count
