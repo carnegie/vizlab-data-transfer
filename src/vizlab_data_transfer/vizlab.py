@@ -348,6 +348,16 @@ def _serialize_payload_header(payload_size, object_name):
 
 
 def _serialize_data_header(size_in_bytes, dims, dtypes, name, unit, is_final_block):
+    # first verify that the data can be accepted by C# 
+    # (C# limits on arrays of 2GB in size AND number of elements less that uint32 max value)
+    # (but our limits are a little tighter due to needing a Base64 string conversion to pass via RPC call)
+    # (the theoretical max is 1.5 GB, but we'll do 1 GB for now until I can test things further!)
+    print(size_in_bytes)
+    if (size_in_bytes > 1e+9):
+        raise ValueError(
+        f"One or more datasets exceeds the 1 GB size limit. Please use alternate means to transfer this data, such as Google Drive/Globus!"
+        )   
+
     block_value = 1 if is_final_block else 0
     content_header = (
         size_in_bytes.to_bytes(4, byteorder="little")
