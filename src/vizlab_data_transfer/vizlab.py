@@ -1,6 +1,8 @@
 import socket
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.mplot3d.art3d import Path3DCollection
 from io import BytesIO
 import struct
 from PIL import Image
@@ -325,7 +327,13 @@ def _serialize_single_data(info, data_name, data_unit, is_final_block):
     if isinstance(info, np.ndarray) and info.dtype.names is None:
         return _serialize_ndarray_data(info, data_name, data_unit, is_final_block)
     elif isinstance(info, plt.Figure):
-        return _serialize_mpl_data(info, data_name, data_unit, is_final_block)
+        if isinstance(info.get_axes()[0], Axes3D): # see if plot is 3D
+            if isinstance(info.get_axes()[0].collections[0], Path3DCollection): # see if plot is 3D scatterplot specifically
+                return _serialize_3d_mpl_data(info, data_name, data_unit, is_final_block)
+            else:
+                return _serialize_2d_mpl_data(info, data_name, data_unit, is_final_block)
+        else:
+            return _serialize_2d_mpl_data(info, data_name, data_unit, is_final_block)
     elif isinstance(info, Image.Image):
         return _serialize_pil_data(info, data_name, data_unit, is_final_block)
     elif isinstance(info, np.ndarray) and info.dtype.names is not None:
@@ -445,7 +453,7 @@ def _serialize_astropy_table_data(table, data_unit, is_final_block=False):
     return _serialize_recarray_data(table.as_array(), data_unit, is_final_block)
 
 
-def _serialize_mpl_data(fig, data_name, data_unit, is_final_block=False):
+def _serialize_2d_mpl_data(fig, data_name, data_unit, is_final_block=False):
 
     # Convert plot to a byte-stored image
     buf = BytesIO()
@@ -464,6 +472,15 @@ def _serialize_mpl_data(fig, data_name, data_unit, is_final_block=False):
     )
 
     return header + data
+
+def _serialize_3d_mpl_data(fig, data_name, data_unit, is_final_block=False):
+
+    # Pull out points from plot
+    scatter = fig.get_axes()[0].collections[0]
+    points = np.array(scatter._offsets3d).T # Need to access private attribute to get at this data!
+
+    # Serialize resulting numpy array
+    return _serialize_ndarray_data(points, data_name, data_unit, is_final_block)
 
 
 def _serialize_pil_data(img, data_name, data_unit, is_final_block=False):

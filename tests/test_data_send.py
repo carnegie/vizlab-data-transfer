@@ -45,15 +45,23 @@ class TestDataSendMethods:
         # recarray
         recdata = np.array([(1.0, 2), (3.0, 4)], dtype=[('x', '<f8'), ('y', '<i8')])
 
-        # mpl figure
-        fig, ax = plt.subplots()
+        # mpl 2d fig_2d
+        fig_2d, ax_2d = plt.subplots()
         x_data = np.linspace(0, 10, 100)
         y_data = np.cos(x_data)
-        ax.plot(x_data, y_data, label="Cosine", color="blue", linestyle="--")
-        ax.set_xlabel("X")
-        ax.set_ylabel("Y")
-        ax.set_title("Cosine Plot")
-        ax.legend()
+        ax_2d.plot(x_data, y_data, label="Cosine", color="blue", linestyle="--")
+        ax_2d.set_xlabel("X")
+        ax_2d.set_ylabel("Y")
+        ax_2d.set_title("Cosine Plot")
+        ax_2d.legend()
+
+        # mpl 3d fig
+        fig_3d = plt.figure()
+        ax_3d = fig_3d.add_subplot(projection='3d')
+        ax_3d.scatter(np.random.rand(100), np.random.rand(100), np.random.rand(100))
+        ax_3d.set_xlabel('X Label')
+        ax_3d.set_ylabel('Y Label')
+        ax_3d.set_zlabel('Z Label')
 
         # PIL image
         pilimage = Image.fromarray((255*np.random.rand(20, 20)).astype(np.uint8))
@@ -71,7 +79,7 @@ class TestDataSendMethods:
 
         assert vizlab.send(nddata) == "RESPONSE"
         assert vizlab.send([nddata, recdata]) == "RESPONSE"
-        assert vizlab.send([pilimage, fig]) == "RESPONSE"
+        assert vizlab.send([pilimage, fig_2d, fig_3d]) == "RESPONSE"
         assert vizlab.send([df, fitstable, fitsimg]) == "RESPONSE"
 
         mock_socket_instance.connect.assert_called_with(("127.0.0.1", 26000))
