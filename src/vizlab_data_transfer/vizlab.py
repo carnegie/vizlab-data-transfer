@@ -8,7 +8,10 @@ import ipaddress
 import os
 import json
 import pandas as pd
-import astropy
+from astropy import units
+from astropy.units.format import FITS
+from astropy.io import fits
+from astropy.table import Table
 
 IP = None  # VizLab's local IP address
 PORT = None  # VizLab's port number
@@ -285,7 +288,7 @@ def _serialize_data(info, object_name, data_names, data_units):
             finalBlock = True if i == len(info) - 1 else False
             name = "" if data_names == None else data_names[i]
             unit = (
-                astropy.units.dimensionless_unscaled
+                units.dimensionless_unscaled
                 if data_units == None
                 else data_units[unit_index : unit_index + _get_num_datasets(info[i])]
             )
@@ -304,7 +307,7 @@ def _serialize_data(info, object_name, data_names, data_units):
             else (data_names[0] if type(data_names) == list else data_names)
         )
         unit = (
-            astropy.units.dimensionless_unscaled
+            units.dimensionless_unscaled
             if data_units == None
             else (data_units if type(data_units) == list else [data_units])
         )
@@ -329,9 +332,9 @@ def _serialize_single_data(info, data_name, data_unit, is_final_block):
         return _serialize_recarray_data(info, data_unit, is_final_block)
     elif isinstance(info, pd.DataFrame):
         return _serialize_pandas_data(info, data_unit, is_final_block)
-    elif isinstance(info, astropy.table.Table):
+    elif isinstance(info, Table):
         return _serialize_astropy_table_data(info, data_unit, is_final_block)
-    elif isinstance(info, astropy.io.fits.ImageHDU):
+    elif isinstance(info, fits.ImageHDU):
         return _serialize_astropy_image_data(info, data_name, data_unit, is_final_block)
     else:
         raise ValueError(
@@ -549,7 +552,7 @@ def _get_unit_as_string(unit):
     if type(unit) == str:
         # verify that provided string is in a valid FITS unit format
         try:
-            converted = astropy.units.Unit(unit)
+            converted = units.Unit(unit)
             return unit
         except:
             raise ValueError(
@@ -557,7 +560,7 @@ def _get_unit_as_string(unit):
             )
     else:
         try:
-            return astropy.units.format.FITS.to_string(unit)
+            return FITS.to_string(unit)
         except:
             raise ValueError(
                 "Provided unit must be either an astropy.units instance or a valid FITS-formatted unit string."
@@ -589,7 +592,7 @@ def _get_num_datasets(dset):
         return len(dset.dtype.names)
     elif isinstance(dset, pd.DataFrame):
         return len(dset.columns)
-    elif isinstance(dset, astropy.table.Table):
+    elif isinstance(dset, Table):
         return len(dset.colnames)
     else:
         return 1
