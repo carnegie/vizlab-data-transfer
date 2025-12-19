@@ -1,6 +1,6 @@
 [project]
 name = "vizlab_data_transfer"
-version = "0.2.1"
+version = "0.2.2"
 description = "A small package for sending and receiving data to and from the CTAC VizLab."
 authors = [{name = "Chris Couto", email = "ccouto@carnegiescience.edu"}]
 readme = "README.md"
